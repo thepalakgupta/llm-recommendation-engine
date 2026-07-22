@@ -29,13 +29,7 @@ if 'client' not in st.session_state:
 # Load spaCy model
 @st.cache_resource
 def load_spacy_model():
-    try:
-        nlp = spacy.load("en_core_web_md")
-    except OSError:
-        st.warning("Downloading spaCy model (this happens once)...")
-        import subprocess
-        subprocess.run(["python", "-m", "spacy", "download", "en_core_web_md"], check=True)
-        nlp = spacy.load("en_core_web_md")
+    nlp = spacy.load("en_core_web_sm")
     return nlp
 
 # Sidebar - API Key & Settings
@@ -67,7 +61,7 @@ with tab1:
     st.header("1️⃣ Upload Product Data")
     
     # Load spaCy model
-    with st.spinner("Loading spaCy model (first time only)..."):
+    with st.spinner("Loading spaCy model..."):
         st.session_state.nlp = load_spacy_model()
     
     # Option to use sample data or upload
