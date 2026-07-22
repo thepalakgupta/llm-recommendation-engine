@@ -1,24 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import anthropic
-import json
 from datetime import datetime
-
-# Try to load spaCy, with fallback
-try:
-    import spacy
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except OSError:
-        st.warning("Downloading spaCy model (one-time)...")
-        import subprocess
-        subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=False)
-        nlp = spacy.load("en_core_web_sm")
-except Exception as e:
-    st.error(f"spaCy error: {e}")
-    nlp = None
 
 st.set_page_config(
     page_title="LLM Recommendation Engine",
@@ -32,46 +18,32 @@ st.markdown("Smart product recommendations balancing user preference + business 
 # Initialize session state
 if 'products_df' not in st.session_state:
     st.session_state.products_df = None
-if 'product_embeddings' not in st.session_state:
-    st.session_state.product_embeddings = None
+if 'vectorizer' not in st.session_state:
+    st.session_state.vectorizer = None
+if 'product_vectors' not in st.session_state:
+    st.session_state.product_vectors = None
 if 'client' not in st.session_state:
     st.session_state.client = None
 
-# Sidebar - API Key & Settings
+# Sidebar
 with st.sidebar:
     st.header("⚙️ Settings")
     
-    api_key = st.text_input("Claude API Key", type="password", help="Get from console.anthropic.com")
+    api_key = st.text_input("Claude API Key", type="password")
     if api_key:
         st.session_state.client = anthropic.Anthropic(api_key=api_key)
-        st.success("✓ Claude API Connected")
-    
-    st.markdown("---")
-    st.markdown("""
-    ### How it works
-    1. **Upload product data** (CSV)
-    2. **Upload user history** (products bought)
-    3. **Set preferences**
-    4. **Get recommendations**
-    """)
+        st.success("✓ Claude Connected")
 
 # Tabs
 tab1, tab2, tab3 = st.tabs(["Setup Data", "Get Recommendations", "Analysis"])
 
-# TAB 1: DATA SETUP
+# TAB 1: SETUP
 with tab1:
     st.header("1️⃣ Upload Product Data")
     
-    data_option = st.radio("Choose data source:", ["Upload CSV", "Use Sample Data"])
+    data_option = st.radio("Choose data source:", ["Use Sample Data", "Upload CSV"])
     
-    if data_option == "Upload CSV":
-        uploaded_file = st.file_uploader("Upload products CSV", type="csv")
-        if uploaded_file is not None:
-            st.session_state.products_df = pd.read_csv(uploaded_file)
-            st.success(f"✓ Loaded {len(st.session_state.products_df)} products")
-            st.dataframe(st.session_state.products_df.head())
-    
-    else:
+    if data_option == "Use Sample Data":
         sample_data = {
             'product_id': ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'],
             'product_name': [
@@ -103,27 +75,35 @@ with tab1:
         st.success(f"✓ Using sample data")
         st.dataframe(st.session_state.products_df)
     
-    if st.session_state.products_df is not None and nlp is not None:
-        if st.button("🚀 Generate Product Embeddings", use_container_width=True, type="primary"):
-            with st.spinner("Generating embeddings..."):
+    else:
+        uploaded_file = st.file_uploader("Upload CSV", type="csv")
+        if uploaded_file:
+            st.session_state.products_df = pd.read_csv(uploaded_file)
+            st.success(f"✓ Loaded {len(st.session_state.products_df)} products")
+            st.dataframe(st.session_state.products_df)
+    
+    if st.session_state.products_df is not None:
+        if st.button("🚀 Generate Vectors", use_container_width=True, type="primary"):
+            with st.spinner("Generating vectors..."):
                 descriptions = st.session_state.products_df['description'].tolist()
-                embeddings = []
                 
-                for desc in descriptions:
-                    doc = nlp(desc)
-                    embeddings.append(doc.vector)
+                vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
+                product_vectors = vectorizer.fit_transform(descriptions).toarray()
                 
-                st.session_state.product_embeddings = np.array(embeddings)
-                st.success(f"✓ Generated embeddings for {len(embeddings)} products")
+                st.session_state.vectorizer = vectorizer
+                st.session_state.product_vectors = product_vectors
+                
+                st.success(f"✓ Generated vectors for {len(product_vectors)} products")
+                st.info(f"Vector size: {product_vectors.shape[1]} dimensions")
 
-# TAB 2: GET RECOMMENDATIONS
+# TAB 2: RECOMMENDATIONS
 with tab2:
     st.header("2️⃣ Get Recommendations")
     
     if st.session_state.products_df is None:
-        st.warning("Please upload product data first")
-    elif st.session_state.product_embeddings is None:
-        st.warning("Please generate embeddings first")
+        st.warning("Upload data first")
+    elif st.session_state.product_vectors is None:
+        st.warning("Generate vectors first")
     else:
         col1, col2 = st.columns(2)
         
@@ -131,69 +111,71 @@ with tab2:
             user_pref_weight = st.slider("User Preference Weight (%)", 0, 100, 70) / 100
         
         with col2:
-            use_margin = st.checkbox("Use Profit Margin", value=True)
-            use_inventory = st.checkbox("Use Inventory Level", value=True)
+            use_margin = st.checkbox("Use Margin", value=True)
+            use_inventory = st.checkbox("Use Inventory", value=True)
         
         st.markdown("---")
         
-        history_option = st.radio("User history:", ["Select Products", "Paste Product IDs"])
+        history_option = st.radio("User history:", ["Select", "Paste IDs"])
         user_product_ids = []
         
-        if history_option == "Select Products":
-            selected = st.multiselect("Select purchased products:", st.session_state.products_df['product_name'].tolist())
+        if history_option == "Select":
+            selected = st.multiselect("Products purchased:", st.session_state.products_df['product_name'].tolist())
             if selected:
                 user_product_ids = st.session_state.products_df[st.session_state.products_df['product_name'].isin(selected)]['product_id'].tolist()
         else:
-            ids_input = st.text_area("Paste product IDs (comma-separated):", placeholder="P1, P3, P5")
+            ids_input = st.text_area("Paste IDs (P1, P2, P3):")
             if ids_input:
                 user_product_ids = [id.strip() for id in ids_input.split(",")]
         
-        num_recommendations = st.slider("Number of recommendations", 1, 10, 5)
+        num_recs = st.slider("How many?", 1, 10, 5)
         
         if st.button("📊 Get Recommendations", use_container_width=True, type="primary"):
             if not user_product_ids:
-                st.error("Please select or input user history")
+                st.error("Select or paste user history")
             else:
                 with st.spinner("Calculating..."):
-                    user_products_mask = st.session_state.products_df['product_id'].isin(user_product_ids)
-                    user_product_indices = user_products_mask.to_numpy().nonzero()[0]
+                    # Get user vectors
+                    user_mask = st.session_state.products_df['product_id'].isin(user_product_ids)
+                    user_indices = user_mask.to_numpy().nonzero()[0]
                     
-                    user_embeddings = st.session_state.product_embeddings[user_product_indices]
-                    user_pref_vector = np.mean(user_embeddings, axis=0)
+                    user_vectors = st.session_state.product_vectors[user_indices]
+                    user_avg_vector = np.mean(user_vectors, axis=0).reshape(1, -1)
                     
-                    similarities = cosine_similarity([user_pref_vector], st.session_state.product_embeddings)[0]
+                    # Calculate similarities
+                    similarities = cosine_similarity(user_avg_vector, st.session_state.product_vectors)[0]
                     
+                    # Score recommendations
                     all_scores = []
                     
-                    for idx, (prod_id, similarity) in enumerate(zip(st.session_state.products_df['product_id'], similarities)):
+                    for idx, (prod_id, sim) in enumerate(zip(st.session_state.products_df['product_id'], similarities)):
                         if prod_id in user_product_ids:
                             continue
                         
-                        business_weight = 0
+                        biz_weight = 0
                         if use_margin:
-                            business_weight += st.session_state.products_df.iloc[idx]['margin']
+                            biz_weight += st.session_state.products_df.iloc[idx]['margin']
                         if use_inventory:
-                            inv_level = st.session_state.products_df.iloc[idx]['inventory']
-                            business_weight += min(inv_level / 100, 0.5)
+                            inv = st.session_state.products_df.iloc[idx]['inventory']
+                            biz_weight += min(inv / 100, 0.5)
                         
-                        final_score = similarity * (1 + (business_weight * (1 - user_pref_weight)))
+                        final_score = sim * (1 + (biz_weight * (1 - user_pref_weight)))
                         
                         all_scores.append({
                             'product_id': prod_id,
                             'product_name': st.session_state.products_df.iloc[idx]['product_name'],
                             'description': st.session_state.products_df.iloc[idx]['description'],
-                            'similarity': similarity,
+                            'similarity': sim,
                             'final_score': final_score,
                             'margin': st.session_state.products_df.iloc[idx]['margin'],
                             'inventory': st.session_state.products_df.iloc[idx]['inventory']
                         })
                     
-                    recommendations = sorted(all_scores, key=lambda x: x['final_score'], reverse=True)
-                    top_recommendations = recommendations[:num_recommendations]
+                    recs = sorted(all_scores, key=lambda x: x['final_score'], reverse=True)[:num_recs]
                     
                     st.subheader("✨ Top Recommendations")
                     
-                    for rank, rec in enumerate(top_recommendations, 1):
+                    for rank, rec in enumerate(recs, 1):
                         col1, col2, col3 = st.columns([2, 1, 1])
                         
                         with col1:
@@ -206,30 +188,31 @@ with tab2:
                         
                         with col3:
                             st.metric("Margin", f"{rec['margin']:.0%}")
-                            st.metric("Inventory", f"{rec['inventory']}")
+                            st.metric("Stock", rec['inventory'])
                         
                         st.markdown("---")
                     
-                    if st.session_state.client and st.button("🤖 Get AI Explanations"):
-                        with st.spinner("Claude analyzing..."):
-                            try:
-                                recs_text = "\n".join([f"{i+1}. {r['product_name']}\n   {r['description']}" for i, r in enumerate(top_recommendations)])
-                                message = st.session_state.client.messages.create(
-                                    model="claude-opus-4-6",
-                                    max_tokens=800,
-                                    messages=[{"role": "user", "content": f"Why would these products be great for someone who bought {', '.join(user_product_ids)}?\n\n{recs_text}"}]
-                                )
-                                st.markdown("### 💡 AI Analysis")
-                                st.markdown(message.content[0].text)
-                            except Exception as e:
-                                st.error(f"Error: {str(e)}")
+                    if st.session_state.client:
+                        if st.button("🤖 Get AI Explanations"):
+                            with st.spinner("Claude thinking..."):
+                                try:
+                                    recs_text = "\n".join([f"{i+1}. {r['product_name']}" for i, r in enumerate(recs)])
+                                    msg = st.session_state.client.messages.create(
+                                        model="claude-opus-4-6",
+                                        max_tokens=600,
+                                        messages=[{"role": "user", "content": f"User bought: {', '.join(user_product_ids)}\n\nTop recommendations:\n{recs_text}\n\nWhy are these good recommendations? (2 sentences each)"}]
+                                    )
+                                    st.markdown("### 💡 Why These?")
+                                    st.markdown(msg.content[0].text)
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
 
 # TAB 3: ANALYSIS
 with tab3:
     st.header("3️⃣ Analysis")
     
     if st.session_state.products_df is None:
-        st.warning("Upload product data first")
+        st.warning("Upload data first")
     else:
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -237,11 +220,9 @@ with tab3:
         with col2:
             st.metric("Avg Margin", f"{st.session_state.products_df['margin'].mean():.1%}")
         with col3:
-            st.metric("Total Inventory", int(st.session_state.products_df['inventory'].sum()))
+            st.metric("Total Stock", int(st.session_state.products_df['inventory'].sum()))
         
         st.markdown("---")
-        st.subheader("Product Data")
         st.dataframe(st.session_state.products_df, use_container_width=True)
 
-st.markdown("---")
-st.caption("Built with Streamlit + spaCy + Claude API")
+st.caption("Streamlit + TF-IDF + Claude API")

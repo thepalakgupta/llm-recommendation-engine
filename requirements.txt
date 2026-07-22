@@ -3,5 +3,4 @@ pandas
 numpy
 scikit-learn
 anthropic
-spacy>=3.0.0
 plotly
