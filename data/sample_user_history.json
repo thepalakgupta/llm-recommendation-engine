@@ -1,0 +1,22 @@
+{
+  "user_1": {
+    "purchased": ["Travel Backpack", "Hiking Boots"],
+    "description": "User interested in travel and outdoor activities"
+  },
+  "user_2": {
+    "purchased": ["Coffee Maker"],
+    "description": "User interested in home and kitchen products"
+  },
+  "user_3": {
+    "purchased": ["Bluetooth Speaker", "Power Bank"],
+    "description": "User interested in electronics and gadgets"
+  },
+  "user_4": {
+    "purchased": ["Travel Pillow", "Compression Bags", "Water Bottle"],
+    "description": "Frequent traveler interested in travel gear"
+  },
+  "user_5": {
+    "purchased": ["Tent", "Hiking Boots"],
+    "description": "Outdoor enthusiast interested in camping and hiking"
+  }
+}
