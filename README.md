@@ -2,6 +2,10 @@
 
 A semantic product recommendation system using TF-IDF vectorization and cosine similarity.
 
+## Why Claude API?
+
+TF-IDF finds products with similar words, but doesn't explain *why* they're recommended. Claude API generates personalized narratives (e.g., "Completes your professional mobile setup") instead of just similarity scores, improving user engagement and conversion rates.
+
 ## Overview
 
 This recommendation engine helps e-commerce platforms suggest relevant products to users based on their purchase history. Instead of simple "users who bought X also bought Y" rules, this system understands product **semantics** using TF-IDF vectorization.
@@ -487,71 +491,6 @@ llm-recommendation-engine/
 └── README.md                       # This file
 ```
 
-## Technical Deep Dive
-
-### TF-IDF Formula
-
-```
-TF-IDF(t, d) = TF(t, d) × IDF(t)
-
-Where:
-- TF(t, d) = (frequency of term t in document d) / (total terms in d)
-- IDF(t) = log(total documents / documents containing t)
-```
-
-### Cosine Similarity Formula
-
-```
-similarity(A, B) = (A · B) / (||A|| × ||B||)
-
-Where:
-- A · B = dot product of vectors
-- ||A|| = magnitude of vector A
-- ||B|| = magnitude of vector B
-
-Result in range [0, 1]
-```
-
-### Example Calculation
-
-```
-Product A vector: [0.5, 0.8, 0.3]
-Product B vector: [0.4, 0.7, 0.2]
-
-Dot product: (0.5×0.4) + (0.8×0.7) + (0.3×0.2) = 0.2 + 0.56 + 0.06 = 0.82
-Magnitude A: √(0.5² + 0.8² + 0.3²) = √(0.25 + 0.64 + 0.09) = √0.98 ≈ 0.99
-Magnitude B: √(0.4² + 0.7² + 0.2²) = √(0.16 + 0.49 + 0.04) = √0.69 ≈ 0.83
-
-Cosine Similarity = 0.82 / (0.99 × 0.83) = 0.82 / 0.82 ≈ 0.998
-
-Interpretation: Products A and B are almost identical (99.8% similar)
-```
-
-## Configuration
-
-### TF-IDF Parameters
-
-```python
-TFIDF_CONFIG = {
-    'max_features': 1000,      # Max unique terms
-    'max_df': 0.95,            # Ignore common words
-    'min_df': 1,               # Include rare words
-    'ngram_range': (1, 2),     # Unigrams + bigrams
-    'lowercase': True,         # Normalize case
-    'stop_words': 'english'    # Remove common English words
-}
-```
-
-### Recommendation Parameters
-
-```python
-RECOMMENDATION_CONFIG = {
-    'top_n': 5,                # Return top 5 recommendations
-    'min_similarity': 0.0,     # Include all scores
-    'exclude_purchased': True  # Don't recommend bought items
-}
-```
-
 ## FAQ
 
 ### Q: Why TF-IDF instead of Word2Vec?
@@ -649,12 +588,6 @@ MIT License - Free to use, modify, and distribute
 - [Recommendation Systems Overview](https://en.wikipedia.org/wiki/Recommender_system)
 - [Content-Based Filtering](https://developers.google.com/machine-learning/recommendation/content-based/basics)
 - [Collaborative Filtering](https://developers.google.com/machine-learning/recommendation/collaborative/basics)
-
-## Support
-
-- Email: thepalakgupta@gmail.com
-- LinkedIn: [thepalakgupta](https://linkedin.com/in/thepalakgupta)
-- GitHub Issues: [thepalakgupta/llm-recommendation-engine/issues](https://github.com/thepalakgupta/llm-recommendation-engine/issues)
 
 ---
 
