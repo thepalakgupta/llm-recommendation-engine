@@ -1,6 +1,6 @@
 # LLM-Powered Recommendation Engine
 
-A semantic product recommendation system using TF-IDF vectorization and cosine similarity.
+A semantic product recommendation system using TF-IDF vectorization and cosine similarity. The live demonstartion of which can be viewed here : https://llm-recommendation-engine-system.streamlit.app/
 
 ## Why Claude API?
 
